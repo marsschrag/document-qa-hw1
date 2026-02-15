@@ -2,3 +2,6 @@ streamlit
 openai
 pypdf
 anthropic
+chromadb
+pysqlite3-binary
+PyPDF2
