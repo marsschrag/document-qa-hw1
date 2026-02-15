@@ -326,5 +326,3 @@ if prompt := st.chat_input("Ask about the course..."):
                     "content": response,
                     "sources": sources
                 })
-    
-    st.rerun()
