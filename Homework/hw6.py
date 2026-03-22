@@ -161,6 +161,8 @@ else:
         history = [m for m in st.session_state.messages[:-1]][-MAX_HISTORY_TURNS:]
         system = SYSTEM_PROMPT.format(articles=corpus)
         api_messages = [{"role": m["role"], "content": m["content"]} for m in history]
+        api_messages.append({"role": "user", "content": enhance_prompt(user_input)})
+        api_messages.append({"role": "user", "content": enhance_prompt(user_input)})
 
         #stream response
         client = anthropic.Anthropic(api_key=st.secrets.get("CLAUDE_API_KEY"))
