@@ -92,13 +92,13 @@ def truncate_corpus(corpus: str, limit: int = CORPUS_TOKEN_LIMIT) -> tuple[str, 
 
 #build rag db once at startup
 @st.cache_data(show_spinner="Building article index…")
-def load_articles(file_bytes: bytes, filename: str) -> tuple[pd.DataFrame, str]:
-    """Parse the uploaded CSV and build the in-memory corpus string."""
+def load_articles(file_bytes: bytes, filename: str) -> tuple[pd.DataFrame, str, bool]:
     df = pd.read_csv(io.BytesIO(file_bytes))
     df.columns = [c.strip().lower() for c in df.columns]
     df = df.dropna(how="all")
     corpus = build_corpus(df)
-    return df, corpus
+    corpus, truncated = truncate_corpus(corpus)
+    return df, corpus, truncated
 
 
 #sidebar
@@ -136,7 +136,6 @@ with st.sidebar:
 
 
 #chat state
-load_articles.clear()
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
