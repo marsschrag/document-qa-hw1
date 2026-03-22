@@ -75,8 +75,9 @@ def enhance_prompt(user_text: str) -> str:
     return user_text
 
 #token budget: reserve space for system prompt wrapper, history, and response
-CORPUS_TOKEN_LIMIT = 180_000
+CORPUS_TOKEN_LIMIT = 150_000
 CHARS_PER_TOKEN = 4
+MAX_HISTORY_TURNS = 6
 
 def truncate_corpus(corpus: str, limit: int = CORPUS_TOKEN_LIMIT) -> tuple[str, bool]:
     """Trim corpus to fit within the token budget. Returns (corpus, was_truncated)."""
@@ -157,11 +158,9 @@ else:
             st.markdown(user_input)
 
         #build API request
+        history = [m for m in st.session_state.messages[:-1]][-MAX_HISTORY_TURNS:]
         system = SYSTEM_PROMPT.format(articles=corpus)
-        api_messages = []
-        for m in st.session_state.messages[:-1]:  #history (exclude current)
-            api_messages.append({"role": m["role"], "content": m["content"]})
-        api_messages.append({"role": "user", "content": enhance_prompt(user_input)})
+        api_messages = [{"role": m["role"], "content": m["content"]} for m in history]
 
         #stream response
         client = anthropic.Anthropic(api_key=st.secrets.get("CLAUDE_API_KEY"))
