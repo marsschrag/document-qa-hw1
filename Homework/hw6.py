@@ -74,6 +74,21 @@ def enhance_prompt(user_text: str) -> str:
         )
     return user_text
 
+#token budget: reserve space for system prompt wrapper, history, and response
+CORPUS_TOKEN_LIMIT = 180_000
+CHARS_PER_TOKEN = 4
+
+def truncate_corpus(corpus: str, limit: int = CORPUS_TOKEN_LIMIT) -> tuple[str, bool]:
+    """Trim corpus to fit within the token budget. Returns (corpus, was_truncated)."""
+    max_chars = limit * CHARS_PER_TOKEN
+    if len(corpus) <= max_chars:
+        return corpus, False
+    truncated = corpus[:max_chars]
+    #cut at the last complete article boundary
+    last_boundary = truncated.rfind("\n\n[Article ")
+    if last_boundary > 0:
+        truncated = truncated[:last_boundary]
+    return truncated, True
 
 #build rag db once at startup
 @st.cache_data(show_spinner="Building article index…")
@@ -95,8 +110,14 @@ with st.sidebar:
     uploaded = st.file_uploader("Upload articles CSV", type=["csv"])
 
     if uploaded:
-        df, corpus = load_articles(uploaded.read(), uploaded.name)
+        df, corpus, truncated = load_articles(uploaded.read(), uploaded.name)
         st.success(f"{len(df)} articles loaded")
+        if truncated:
+            st.warning("corpus was trimmed to fit the 200k token limit. Some articles may be excluded.")
+        with st.expander("Column preview"):
+            st.write(list(df.columns))
+        with st.expander("Sample articles (first 3)"):
+            st.dataframe(df.head(3), use_container_width=True)
     else:
         corpus = None
         st.info("Upload a CSV to get started.\n\nExpected columns: `title`, `source`, `date`, `content` (or similar).")
