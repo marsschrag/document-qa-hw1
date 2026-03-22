@@ -9,7 +9,10 @@ st.set_page_config(
 )
 
 #constants
-MODEL = "claude-opus-4-5"
+MODELS = {
+    "claude-haiku-4-5-20251001": "Haiku 4.5 · Low cost",
+    "claude-sonnet-4-5": "Sonnet 4.5 · Mid cost",
+}
 MAX_TOKENS = 1024
 
 SYSTEM_PROMPT = """You are a news monitoring assistant for a large global law firm. \
@@ -83,6 +86,24 @@ def load_articles(file_bytes: bytes, filename: str) -> tuple[pd.DataFrame, str]:
     corpus = build_corpus(df)
     return df, corpus
 
+def get_response(client, model_id, system, messages, enhanced_input):
+    """Collect full streaming response and measure latency."""
+    api_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
+    api_messages.append({"role": "user", "content": enhanced_input})
+    full_text = ""
+    t0 = time.perf_counter()
+    with client.messages.stream(
+        model=model_id,
+        max_tokens=MAX_TOKENS,
+        system=system,
+        messages=api_messages,
+    ) as stream:
+        for text in stream.text_stream:
+            full_text += text
+            yield full_text, None  #stream chunk
+    elapsed = time.perf_counter() - t0
+    yield full_text, elapsed  #final chunk with timing
+
 
 #sidebar
 with st.sidebar:
@@ -138,7 +159,7 @@ else:
         api_messages.append({"role": "user", "content": enhance_prompt(user_input)})
 
         #stream response
-        client = anthropic.Anthropic()
+        client = anthropic.Anthropic(api_key=st.secrets.get("CLAUDE_API_KEY") or os.environ.get("CLAUDE_API_KEY"))
         with st.chat_message("assistant"):
             response_box = st.empty()
             full_response = ""
