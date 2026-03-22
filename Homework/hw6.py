@@ -15,24 +15,23 @@ MODELS = {
 }
 MAX_TOKENS = 1024
 
-SYSTEM_PROMPT = """You are a news monitoring assistant for a large global law firm. \
+SYSTEM_PROMPT = """You are a news monitoring assistant for a large global law firm.
+
 Your job is to help lawyers and staff find relevant news about their clients and matters.
 
-You have access to a curated set of news articles provided below. \
-You must ONLY answer based on these articles — do not use outside knowledge or invent information.
+You have access to a curated set of news articles provided below.
 
-RULES:
-1. Only report on news from the provided articles. If something isn't covered, say so clearly.
-2. When asked for "interesting", "top", or "important" news, rank articles by legal/business \
-significance: regulatory actions, litigation, M&A, executive changes, financial distress, \
-and major policy changes rank highest.
-3. For each article you surface, provide: title, source, date, and a brief explanation of \
-WHY it is notable from a legal or business perspective.
-4. When searching by topic or company, use semantic matching — partial names, subsidiaries, \
-and related entities count.
-5. Be concise and professional. This is a law firm tool.
-6. Format ranked lists as numbered items. Each item: bold headline, source/date on one line, \
-then 1–2 sentences of legal context.
+You must ONLY answer based on these articles, do not use outside knowledge or invent information.
+
+When asked for "interesting", "top", or "important" news, rank articles by legal/business significance: regulatory actions, litigation, M&A, executive changes, financial distress, and major policy changes rank highest.
+
+For each article you surface, provide: title, source, date, and a brief explanation of WHY it is notable from a legal or business perspective.
+
+When searching by topic or company, use semantic matching — partial names, subsidiaries, and related entities count.
+
+Be concise and professional.
+
+Format ranked lists as numbered items. Each item: bold headline, source/date on one line, then 1 or 2 sentences of legal context.
 
 ARTICLE CORPUS:
 {articles}"""
@@ -86,24 +85,6 @@ def load_articles(file_bytes: bytes, filename: str) -> tuple[pd.DataFrame, str]:
     corpus = build_corpus(df)
     return df, corpus
 
-def get_response(client, model_id, system, messages, enhanced_input):
-    """Collect full streaming response and measure latency."""
-    api_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
-    api_messages.append({"role": "user", "content": enhanced_input})
-    full_text = ""
-    t0 = time.perf_counter()
-    with client.messages.stream(
-        model=model_id,
-        max_tokens=MAX_TOKENS,
-        system=system,
-        messages=api_messages,
-    ) as stream:
-        for text in stream.text_stream:
-            full_text += text
-            yield full_text, None  #stream chunk
-    elapsed = time.perf_counter() - t0
-    yield full_text, elapsed  #final chunk with timing
-
 
 #sidebar
 with st.sidebar:
@@ -116,15 +97,18 @@ with st.sidebar:
     if uploaded:
         df, corpus = load_articles(uploaded.read(), uploaded.name)
         st.success(f"{len(df)} articles loaded")
-        with st.expander("Column preview"):
-            st.write(list(df.columns))
-        with st.expander("Sample articles (first 3)"):
-            st.dataframe(df.head(3), use_container_width=True)
     else:
         corpus = None
         st.info("Upload a CSV to get started.\n\nExpected columns: `title`, `source`, `date`, `content` (or similar).")
 
     st.divider()
+
+    selected_model = st.selectbox(
+        "Model",
+        options=list(MODELS.keys()),
+        format_func=lambda k: MODELS[k],
+    )
+
     if st.button("Clear conversation", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
@@ -159,12 +143,12 @@ else:
         api_messages.append({"role": "user", "content": enhance_prompt(user_input)})
 
         #stream response
-        client = anthropic.Anthropic(api_key=st.secrets.get("CLAUDE_API_KEY") or os.environ.get("CLAUDE_API_KEY"))
+        client = anthropic.Anthropic(api_key=st.secrets.get("CLAUDE_API_KEY"))
         with st.chat_message("assistant"):
             response_box = st.empty()
             full_response = ""
             with client.messages.stream(
-                model=MODEL,
+                model=selected_model,
                 max_tokens=MAX_TOKENS,
                 system=system,
                 messages=api_messages,
